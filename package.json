@@ -1,0 +1,20 @@
+{
+  "name": "armychess",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm run dev -w @armychess/server\" \"npm run dev -w @armychess/web\"",
+    "build": "npm run build -w @armychess/web",
+    "start": "npm run build -w @armychess/web && npm run start -w @armychess/server",
+    "test": "npm test -w @armychess/engine"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.2"
+  }
+}

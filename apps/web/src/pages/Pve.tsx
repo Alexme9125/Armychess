@@ -59,6 +59,7 @@ export function PvePage() {
     if (!game || game.winner) return;
     if (game.turn === side) return;
     setThinking(true);
+    const waitMs = 2000 + Math.random() * 2000;
     timer.current = window.setTimeout(() => {
       const mv = chooseMove(game, personality, 240);
       setThinking(false);
@@ -66,7 +67,7 @@ export function PvePage() {
         const next = tryMove(game, mv.from, mv.to);
         if (next) setGame(next);
       }
-    }, 700);
+    }, waitMs);
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
     };

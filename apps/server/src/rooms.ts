@@ -108,7 +108,7 @@ function emitRoom(io: Server, room: Room) {
 }
 
 function emitErr(socket: Socket, message: string) {
-  socket.emit("error", { message });
+  socket.emit("notice", { message });
 }
 
 function tryStart(io: Server, room: Room) {

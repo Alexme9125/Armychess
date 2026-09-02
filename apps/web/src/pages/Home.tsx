@@ -22,6 +22,8 @@ export function HomePage() {
           昵称
           <input
             className="w-28 bg-transparent outline-none"
+            name="nickname"
+            id="nickname"
             value={name}
             maxLength={16}
             onChange={(e) => setName(e.target.value)}
@@ -63,6 +65,8 @@ export function HomePage() {
             <input
               className="glass min-w-0 flex-1 rounded-2xl px-4 py-3 tracking-[0.3em]"
               placeholder="房间码"
+              name="roomCode"
+              id="roomCode"
               value={room}
               onChange={(e) => setRoom(e.target.value)}
             />

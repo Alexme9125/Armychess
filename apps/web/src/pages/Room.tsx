@@ -50,14 +50,14 @@ export function RoomPage() {
       else s.emit("joinRoom", { code: param });
     };
     s.on("room", onRoom);
-    s.on("error", onErr);
+    s.on("notice", onErr);
     s.on("session", onSession);
     s.connect();
     s.emit("hello", { nickname });
     return () => {
       s.emit("leave");
       s.off("room", onRoom);
-      s.off("error", onErr);
+      s.off("notice", onErr);
       s.off("session", onSession);
     };
   }, [creating, nickname, param]);
@@ -159,6 +159,8 @@ export function RoomPage() {
               <input
                 className="min-w-0 flex-1 rounded-2xl bg-white/10 px-4 py-3 tracking-[0.3em]"
                 placeholder="输入蓝图码"
+                name="roomBlueprint"
+                id="roomBlueprint"
                 value={bp}
                 onChange={(e) => setBp(e.target.value.toUpperCase())}
               />

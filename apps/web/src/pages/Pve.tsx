@@ -90,6 +90,8 @@ export function PvePage() {
             蓝图码
             <input
               className="mt-2 w-full rounded-2xl bg-white/10 px-4 py-3 tracking-[0.35em]"
+              name="blueprint"
+              id="blueprint"
               value={code}
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="六位码或彩蛋码"
@@ -99,6 +101,8 @@ export function PvePage() {
             人机人格
             <select
               className="mt-2 w-full rounded-2xl bg-white/10 px-4 py-3"
+              name="personality"
+              id="personality"
               value={personality}
               onChange={(e) => setPersonality(e.target.value as Personality)}
             >

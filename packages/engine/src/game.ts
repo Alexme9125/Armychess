@@ -175,6 +175,8 @@ export interface PublicState {
       result: NonNullable<LastMove["combat"]>["result"];
       attackerKind: PublicKind;
       defenderKind: PublicKind;
+      attackerSide: Side;
+      defenderSide: Side;
     } | null;
     commanderDown: Side | null;
   } | null;
@@ -214,6 +216,8 @@ export function projectState(
               showAll || viewer === c.attackerSide ? c.attackerKind : "hidden",
             defenderKind:
               showAll || viewer === c.defenderSide ? c.defenderKind : "hidden",
+            attackerSide: c.attackerSide,
+            defenderSide: c.defenderSide,
           }
         : null,
     };

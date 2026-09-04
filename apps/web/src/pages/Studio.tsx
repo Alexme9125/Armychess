@@ -1,8 +1,8 @@
 import {
   DEFAULT_LAYOUTS,
-  KIND_LABEL,
+  LOCAL_VIEW_HEIGHT,
+  VIEW_WIDTH,
   isCampLocal,
-  isHqLocal,
   kitList,
   validateLayout,
   type Layout,
@@ -12,11 +12,9 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { bpKey, saveBlueprint } from "../api";
-import { PieceFace } from "../components/PieceFace";
 import { localPct } from "../components/Board";
-
-const W = 70 * 2 + 4 * 108;
-const H = 48 * 2 + 5 * 76;
+import { BoardArt } from "../components/BoardArt";
+import { PieceFace } from "../components/PieceFace";
 
 type Drag = { kind: PieceKind; from?: { x: number; y: number } } | null;
 
@@ -78,19 +76,19 @@ export function StudioPage() {
       setDrag(null);
       return;
     }
-    const lx = ((clientX - r.left) / r.width) * W;
-    const ly = ((clientY - r.top) / r.height) * H;
+    const lx = ((clientX - r.left) / r.width) * VIEW_WIDTH;
+    const ly = ((clientY - r.top) / r.height) * LOCAL_VIEW_HEIGHT;
     let best: { x: number; y: number; d: number } | null = null;
     for (let y = 0; y <= 5; y++) {
       for (let x = 0; x < 5; x++) {
         const p = localPct(x, y);
-        const cx = (p.left / 100) * W;
-        const cy = (p.top / 100) * H;
+        const cx = (p.left / 100) * VIEW_WIDTH;
+        const cy = (p.top / 100) * LOCAL_VIEW_HEIGHT;
         const d = (cx - lx) ** 2 + (cy - ly) ** 2;
         if (!best || d < best.d) best = { x, y, d };
       }
     }
-    if (best && best.d < 55 * 55) occupy(best.x, best.y, drag.kind, drag.from);
+    if (best && best.d < 40 * 40) occupy(best.x, best.y, drag.kind, drag.from);
     setDrag(null);
   }
 
@@ -150,7 +148,13 @@ export function StudioPage() {
                 {p === "cautious" ? "谨慎阵" : p === "balanced" ? "平衡阵" : "激进阵"}
               </button>
             ))}
-            <button className="glass rounded-full px-3 py-1 text-xs" onClick={() => { setLayout([]); setCode(null); }}>
+            <button
+              className="glass rounded-full px-3 py-1 text-xs"
+              onClick={() => {
+                setLayout([]);
+                setCode(null);
+              }}
+            >
               清空
             </button>
           </div>
@@ -159,43 +163,10 @@ export function StudioPage() {
         <div
           ref={boardRef}
           className="glass-strong relative mx-auto w-full max-w-[520px] overflow-hidden rounded-[28px]"
-          style={{ aspectRatio: `${W} / ${H}` }}
+          style={{ aspectRatio: `${VIEW_WIDTH} / ${LOCAL_VIEW_HEIGHT}` }}
         >
-          <svg viewBox={`0 0 ${W} ${H}`} className="h-full w-full">
-            {Array.from({ length: 6 }, (_, yi) =>
-              Array.from({ length: 5 }, (_, x) => {
-                const y = yi;
-                const p = localPct(x, y);
-                const cx = (p.left / 100) * W;
-                const cy = (p.top / 100) * H;
-                const camp = isCampLocal(x, y);
-                const hq = isHqLocal(x, y);
-                return (
-                  <g key={`${x}-${y}`}>
-                    {camp ? (
-                      <circle cx={cx} cy={cy} r="22" fill="none" stroke="rgba(186,230,253,0.55)" />
-                    ) : hq ? (
-                      <rect x={cx - 22} y={cy - 18} width="44" height="36" rx="8" fill="rgba(0,0,0,0.2)" stroke="#fbbf24" />
-                    ) : (
-                      <rect
-                        x={cx - 20}
-                        y={cy - 14}
-                        width="40"
-                        height="28"
-                        rx="10"
-                        fill="rgba(255,255,255,0.06)"
-                        stroke="rgba(255,255,255,0.28)"
-                      />
-                    )}
-                    {y === 5 && !camp ? (
-                      <text x={cx} y={cy + 26} textAnchor="middle" fontSize="9" fill="rgba(255,255,255,0.4)">
-                        锋
-                      </text>
-                    ) : null}
-                  </g>
-                );
-              }),
-            )}
+          <svg viewBox={`0 0 ${VIEW_WIDTH} ${LOCAL_VIEW_HEIGHT}`} className="h-full w-full">
+            <BoardArt half />
           </svg>
           {layout.map((p) => {
             const pos = localPct(p.x, p.y);
@@ -232,7 +203,11 @@ export function StudioPage() {
           ))}
         </div>
         <div className="mt-3 space-y-2 text-xs text-amber-200/90">
-          {complete ? <p className="text-emerald-300">阵型合法，可以保存。</p> : issues.slice(0, 3).map((i) => <p key={i.code + i.message}>{i.message}</p>)}
+          {complete ? (
+            <p className="text-emerald-300">阵型合法，可以保存。</p>
+          ) : (
+            issues.slice(0, 3).map((i) => <p key={i.code + i.message}>{i.message}</p>)
+          )}
         </div>
         <button
           className="mt-3 w-full rounded-2xl bg-white/90 py-3 font-semibold text-slate-900 disabled:opacity-40"
@@ -245,10 +220,7 @@ export function StudioPage() {
           <div className="mt-3 rounded-2xl bg-white/10 p-3 text-center">
             <div className="text-xs text-white/60">蓝图码</div>
             <div className="serif mt-1 text-3xl tracking-[0.35em]">{code}</div>
-            <button
-              className="mt-2 text-xs text-cyan-200"
-              onClick={() => navigator.clipboard?.writeText(code)}
-            >
+            <button className="mt-2 text-xs text-cyan-200" onClick={() => navigator.clipboard?.writeText(code)}>
               复制
             </button>
           </div>

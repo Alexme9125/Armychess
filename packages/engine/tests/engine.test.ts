@@ -7,7 +7,9 @@ import {
   createGame,
   DEFAULT_LAYOUTS,
   generateMoves,
+  getNode,
   isCamp,
+  isHq,
   isLayoutLegal,
   nid,
   projectState,
@@ -47,6 +49,25 @@ describe("board", () => {
     expect(BOARD_NODES.filter((n) => n.kind === "camp")).toHaveLength(10);
     expect(BOARD_NODES.filter((n) => n.kind === "hq")).toHaveLength(4);
     expect(BOARD_NODES.filter((n) => n.kind === "front")).toHaveLength(3);
+  });
+
+  it("places headquarters at back-row corners and camps in a dice-five", () => {
+    expect(isHq(nid(0, 0))).toBe(true);
+    expect(isHq(nid(0, 4))).toBe(true);
+    expect(isHq(nid(12, 0))).toBe(true);
+    expect(isHq(nid(12, 4))).toBe(true);
+    expect(getNode(nid(0, 2))?.kind).toBe("station");
+    expect(isCamp(nid(2, 1))).toBe(true);
+    expect(isCamp(nid(2, 3))).toBe(true);
+    expect(isCamp(nid(3, 2))).toBe(true);
+    expect(isCamp(nid(4, 1))).toBe(true);
+    expect(isCamp(nid(4, 3))).toBe(true);
+    expect(isCamp(nid(10, 1))).toBe(true);
+    expect(isCamp(nid(9, 2))).toBe(true);
+    expect(isCamp(nid(8, 3))).toBe(true);
+    expect(getNode(nid(6, 0))?.kind).toBe("front");
+    expect(getNode(nid(6, 2))?.kind).toBe("front");
+    expect(getNode(nid(6, 4))?.kind).toBe("front");
   });
 });
 

@@ -15,15 +15,17 @@ export function PieceFace({
   return (
     <div
       className={`mica ${side} flex items-center justify-center select-none ${
-        compact ? "h-11 w-9 text-[11px]" : "h-[46px] w-[38px] sm:h-[50px] sm:w-[42px] text-[12px] sm:text-[13px]"
+        compact
+          ? "h-7 w-[3.2rem] text-[11px]"
+          : "h-[20px] w-[48px] sm:h-[22px] sm:w-[50px] text-[11px] sm:text-[12px]"
       } ${dimmed ? "opacity-50" : ""}`}
-      style={{ borderRadius: 11 }}
+      style={{ borderRadius: 999 }}
     >
-      <span className="serif relative z-[1] font-semibold tracking-wide">
+      <span className="serif relative z-[1] font-semibold tracking-wide leading-none">
         {hidden ? "" : KIND_LABEL[kind as PieceKind]}
       </span>
       {hidden ? (
-        <span className="absolute inset-[7px] rounded-md border border-white/20 bg-white/5" />
+        <span className="absolute inset-[3px] rounded-full border border-white/25 bg-white/8" />
       ) : null}
     </div>
   );

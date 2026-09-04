@@ -156,9 +156,6 @@ function buildGraph(nodes: Map<string, BoardNode>): {
       if (!nodes.has(nid(ny, nx))) continue;
       if (y <= 5 && ny >= 7) continue;
       if (y >= 7 && ny <= 5) continue;
-      if ((y <= 5 && ny === 6 && dx !== 0) || (y >= 7 && ny === 6 && dx !== 0)) {
-        // vertical into center handled separately
-      }
       add(nid(y, x), nid(ny, nx), "road");
     }
   };
@@ -272,30 +269,95 @@ export function inTerritory(y: number, x: number, side: Side): boolean {
   return inHalf(y, x, side);
 }
 
+/** Compact board: horizontal stations, regular grid (HQ on the same rank as 端线). */
 export const DISPLAY = {
-  originX: 70,
-  originY: 48,
-  gapX: 108,
-  gapY: 76,
+  originX: 54,
+  originY: 32,
+  gapX: 94,
+  gapY: 46,
 };
 
 export function nodeDisplay(id: string, flipY: boolean): { x: number; y: number } {
   const n = NODES.get(id);
   if (!n) return { x: 0, y: 0 };
-  const y = flipY ? BOARD_MAX_Y - n.y : n.y;
+  const gy = flipY ? BOARD_MAX_Y - n.y : n.y;
   return {
     x: DISPLAY.originX + n.x * DISPLAY.gapX,
-    y: DISPLAY.originY + y * DISPLAY.gapY,
+    y: DISPLAY.originY + gy * DISPLAY.gapY,
   };
 }
 
 export function mountainDisplay(mx: number, my: number, flipY: boolean): { x: number; y: number } {
-  const y = flipY ? BOARD_MAX_Y - my : my;
+  const gy = flipY ? BOARD_MAX_Y - my : my;
   return {
     x: DISPLAY.originX + mx * DISPLAY.gapX,
-    y: DISPLAY.originY + y * DISPLAY.gapY,
+    y: DISPLAY.originY + gy * DISPLAY.gapY,
   };
 }
 
+/** Local coords: y=0 HQ row at the bottom of the studio board. */
+export function localNodePos(x: number, y: number): { x: number; y: number } {
+  return {
+    x: DISPLAY.originX + x * DISPLAY.gapX,
+    y: DISPLAY.originY + (5 - y) * DISPLAY.gapY,
+  };
+}
+
+export const RAIL_LOOP_BLACK = [
+  "1-0",
+  "1-1",
+  "1-2",
+  "1-3",
+  "1-4",
+  "2-4",
+  "3-4",
+  "4-4",
+  "5-4",
+  "5-3",
+  "5-2",
+  "5-1",
+  "5-0",
+  "4-0",
+  "3-0",
+  "2-0",
+] as const;
+
+export const RAIL_LOOP_WHITE = [
+  "11-0",
+  "11-1",
+  "11-2",
+  "11-3",
+  "11-4",
+  "10-4",
+  "9-4",
+  "8-4",
+  "7-4",
+  "7-3",
+  "7-2",
+  "7-1",
+  "7-0",
+  "8-0",
+  "9-0",
+  "10-0",
+] as const;
+
+export const RAIL_CORNERS = new Set([
+  "1-0",
+  "1-4",
+  "5-0",
+  "5-4",
+  "7-0",
+  "7-4",
+  "11-0",
+  "11-4",
+]);
+
+export const CENTER_RAILS: [string, string, string][] = [
+  ["5-0", "6-0", "7-0"],
+  ["5-2", "6-2", "7-2"],
+  ["5-4", "6-4", "7-4"],
+];
+
 export const VIEW_WIDTH = DISPLAY.originX * 2 + 4 * DISPLAY.gapX;
 export const VIEW_HEIGHT = DISPLAY.originY * 2 + BOARD_MAX_Y * DISPLAY.gapY;
+export const LOCAL_VIEW_HEIGHT = DISPLAY.originY * 2 + 5 * DISPLAY.gapY;

@@ -1,14 +1,12 @@
 import {
-  BOARD_EDGES,
-  BOARD_NODES,
   KIND_LABEL,
-  MOUNTAINS,
+  LOCAL_VIEW_HEIGHT,
   VIEW_HEIGHT,
   VIEW_WIDTH,
   generateMoves,
   isCamp,
   isHq,
-  mountainDisplay,
+  localNodePos,
   nodeDisplay,
   parseNid,
   type GameState,
@@ -20,6 +18,7 @@ import {
 } from "@armychess/engine";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { BoardArt } from "./BoardArt";
 import { LiquidOverlay, type FxEvent } from "./LiquidOverlay";
 import { PieceFace } from "./PieceFace";
 
@@ -29,7 +28,7 @@ function toPct(id: string, flipY: boolean) {
 }
 
 function sideColor(side: Side) {
-  return side === "black" ? "rgba(36,40,48,0.95)" : "rgba(236,242,250,0.95)";
+  return side === "black" ? "rgba(42,46,56,0.96)" : "rgba(236,242,250,0.96)";
 }
 
 export function GameBoard({
@@ -87,6 +86,8 @@ export function GameBoard({
     playedFx.current = sig;
     const a = toPct(lm.from, flipY);
     const b = toPct(lm.to, flipY);
+    const attackerSide = lm.combat.attackerSide;
+    const defenderSide = lm.combat.defenderSide;
     if (lm.combat.result === "draw") {
       setFx({
         id: Date.now(),
@@ -95,8 +96,8 @@ export function GameBoard({
         y: b.y,
         fromX: a.x,
         fromY: a.y,
-        colorA: sideColor("black"),
-        colorB: sideColor("white"),
+        colorA: sideColor(attackerSide),
+        colorB: sideColor(defenderSide),
       });
     } else {
       setFx({
@@ -106,8 +107,9 @@ export function GameBoard({
         y: b.y,
         fromX: a.x,
         fromY: a.y,
-        colorA: sideColor("black"),
-        colorB: sideColor("white"),
+        colorA: sideColor(attackerSide),
+        colorB: sideColor(defenderSide),
+        incomingWins: lm.combat.result === "attacker",
       });
     }
   }, [state.lastMove, flipY]);
@@ -128,146 +130,36 @@ export function GameBoard({
   }
 
   const last = state.lastMove;
+  const hideNode = fx && last?.combat ? last.to : null;
+  const hinted = new Set<string>();
+  if (state.flagHints.black && origin !== "black") hinted.add(state.flagHints.black);
+  if (state.flagHints.white && origin !== "white") hinted.add(state.flagHints.white);
 
   return (
     <div className="relative mx-auto w-full max-w-[560px]">
       <div
-        className="glass-strong relative overflow-hidden rounded-[28px] p-2 sm:p-3"
+        className="glass-strong relative overflow-hidden rounded-[24px] p-2 sm:p-3"
         style={{ aspectRatio: `${VIEW_WIDTH} / ${VIEW_HEIGHT}` }}
       >
         <div className="pointer-events-none absolute inset-0 opacity-70">
-          <div className="absolute -left-10 top-10 h-40 w-40 rounded-full bg-cyan-300/20 blur-3xl" />
-          <div className="absolute -right-8 bottom-16 h-44 w-44 rounded-full bg-indigo-400/20 blur-3xl" />
+          <div className="absolute -left-10 top-8 h-32 w-32 rounded-full bg-cyan-300/20 blur-3xl" />
+          <div className="absolute -right-8 bottom-10 h-36 w-36 rounded-full bg-indigo-400/18 blur-3xl" />
         </div>
         <div className="relative h-full w-full">
           <svg viewBox={`0 0 ${VIEW_WIDTH} ${VIEW_HEIGHT}`} className="h-full w-full">
-            <defs>
-              <linearGradient id="rail" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0" stopColor="rgba(186,230,253,0.9)" />
-                <stop offset="1" stopColor="rgba(196,181,253,0.85)" />
-              </linearGradient>
-              <filter id="softglow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="1.4" result="b" />
-                <feMerge>
-                  <feMergeNode in="b" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-            </defs>
-            {BOARD_EDGES.filter((e) => e.kind === "road").map((e) => {
-              const a = nodeDisplay(e.a, flipY);
-              const b = nodeDisplay(e.b, flipY);
-              return (
-                <line
-                  key={`r-${e.a}-${e.b}`}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  stroke="rgba(255,255,255,0.22)"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                />
-              );
-            })}
-            {BOARD_EDGES.filter((e) => e.kind === "rail").map((e) => {
-              const a = nodeDisplay(e.a, flipY);
-              const b = nodeDisplay(e.b, flipY);
-              return (
-                <g key={`l-${e.a}-${e.b}`}>
-                  <line
-                    x1={a.x}
-                    y1={a.y}
-                    x2={b.x}
-                    y2={b.y}
-                    stroke="rgba(255,255,255,0.14)"
-                    strokeWidth="7.5"
-                    strokeLinecap="round"
-                  />
-                  <line
-                    className="rail-flow"
-                    x1={a.x}
-                    y1={a.y}
-                    x2={b.x}
-                    y2={b.y}
-                    stroke="url(#rail)"
-                    strokeWidth="3.2"
-                    strokeLinecap="round"
-                    filter="url(#softglow)"
-                  />
-                </g>
-              );
-            })}
-            {MOUNTAINS.map((m) => {
-              const p = mountainDisplay(m.x, m.y, flipY);
-              return (
-                <g key={`m-${m.x}-${m.y}`}>
-                  <circle cx={p.x} cy={p.y} r="16" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
-                  <circle cx={p.x} cy={p.y} r="8" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.28)" />
-                </g>
-              );
-            })}
-            {BOARD_NODES.map((n) => {
-              const p = nodeDisplay(n.id, flipY);
-              const active = selected === n.id;
-              const dest = destSet.has(n.id);
-              const hinted =
-                (state.flagHints.black === n.id && origin !== "black") ||
-                (state.flagHints.white === n.id && origin !== "white");
-              const lastHere = last && (last.from === n.id || last.to === n.id);
-              return (
-                <g key={n.id} onClick={() => clickNode(n.id)} className="cursor-pointer">
-                  {n.kind === "camp" ? (
-                    <>
-                      <circle cx={p.x} cy={p.y} r="22" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.42)" />
-                      <circle cx={p.x} cy={p.y} r="15" fill="rgba(125,211,252,0.08)" stroke="rgba(186,230,253,0.7)" />
-                    </>
-                  ) : n.kind === "hq" ? (
-                    <rect
-                      x={p.x - 22}
-                      y={p.y - 18}
-                      width="44"
-                      height="36"
-                      rx="8"
-                      fill="rgba(15,18,28,0.35)"
-                      stroke="rgba(252,211,77,0.8)"
-                      strokeWidth="2"
-                    />
-                  ) : (
-                    <rect
-                      x={p.x - 20}
-                      y={p.y - 14}
-                      width="40"
-                      height="28"
-                      rx="10"
-                      fill="rgba(255,255,255,0.07)"
-                      stroke={n.kind === "front" ? "rgba(167,243,208,0.7)" : "rgba(255,255,255,0.28)"}
-                      strokeWidth="1.6"
-                    />
-                  )}
-                  {dest ? <circle cx={p.x} cy={p.y} r="6" fill="rgba(52,211,153,0.9)" /> : null}
-                  {active ? (
-                    <circle cx={p.x} cy={p.y} r="26" fill="none" stroke="rgba(250,250,250,0.85)" strokeWidth="2" />
-                  ) : null}
-                  {hinted ? (
-                    <circle
-                      cx={p.x}
-                      cy={p.y}
-                      r="28"
-                      fill="none"
-                      stroke="rgba(251,191,36,0.9)"
-                      strokeDasharray="4 3"
-                    />
-                  ) : null}
-                  {lastHere ? (
-                    <circle cx={p.x} cy={p.y} r="24" fill="none" stroke="rgba(147,197,253,0.45)" />
-                  ) : null}
-                </g>
-              );
-            })}
+            <BoardArt
+              flipY={flipY}
+              selected={selected}
+              destSet={destSet}
+              hinted={hinted}
+              lastFrom={last?.from}
+              lastTo={last?.to}
+              onNodeClick={clickNode}
+            />
           </svg>
 
           {Object.entries(state.pieces).map(([id, piece]) => {
+            if (hideNode === id) return null;
             const p = toPct(id, flipY);
             return (
               <motion.button
@@ -276,7 +168,7 @@ export function GameBoard({
                 className="absolute -translate-x-1/2 -translate-y-1/2"
                 initial={false}
                 animate={{ left: `${p.x}%`, top: `${p.y}%` }}
-                transition={{ type: "spring", stiffness: 240, damping: 24, mass: 0.8 }}
+                transition={{ type: "spring", stiffness: 260, damping: 28, mass: 0.7 }}
                 onClick={() => clickNode(id)}
               >
                 <PieceFace kind={piece.kind as PublicKind} side={piece.side} />
@@ -288,7 +180,7 @@ export function GameBoard({
         </div>
 
         {thinking ? (
-          <div className="absolute inset-x-0 bottom-3 text-center text-xs tracking-widest text-white/70">
+          <div className="absolute inset-x-0 bottom-2 text-center text-xs tracking-widest text-white/70">
             思考中…
           </div>
         ) : null}
@@ -298,15 +190,12 @@ export function GameBoard({
 }
 
 export function localPct(x: number, y: number) {
-  const gx = 70 + x * 108;
-  const gy = 48 + (5 - y) * 76;
-  const w = 70 * 2 + 4 * 108;
-  const h = 48 * 2 + 5 * 76;
-  return { left: (gx / w) * 100, top: (gy / h) * 100, w, h };
+  const p = localNodePos(x, y);
+  return { left: (p.x / VIEW_WIDTH) * 100, top: (p.y / LOCAL_VIEW_HEIGHT) * 100, w: VIEW_WIDTH, h: LOCAL_VIEW_HEIGHT };
 }
 
 export function parseMaybe(id: string) {
   return parseNid(id);
 }
 
-export { KIND_LABEL, isCamp, isHq };
+export { KIND_LABEL, LOCAL_VIEW_HEIGHT, VIEW_WIDTH, isCamp, isHq };

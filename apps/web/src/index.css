@@ -68,7 +68,7 @@ body {
 .mica {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 999px;
   isolation: isolate;
 }
 

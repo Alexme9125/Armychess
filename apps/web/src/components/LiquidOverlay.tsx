@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-export type FxKind = "fusion" | "splash" | "nudge";
+export type FxKind = "fusion" | "splash";
 
 export interface FxEvent {
   id: number;
@@ -11,6 +11,94 @@ export interface FxEvent {
   fromY: number;
   colorA: string;
   colorB: string;
+  /** Fusion: true if the incoming blob (attacker) absorbs the target. */
+  incomingWins?: boolean;
+}
+
+type Blob = { x: number; y: number; rx: number; ry: number; r: number; g: number; b: number };
+type Drop = Blob & { vx: number; vy: number; life: number; mass: number };
+
+function parseColor(c: string): [number, number, number] {
+  const m = c.match(/[\d.]+/g);
+  if (!m || m.length < 3) return [40, 44, 52];
+  return [Number(m[0]), Number(m[1]), Number(m[2])];
+}
+
+function clamp(v: number, a: number, b: number) {
+  return Math.max(a, Math.min(b, v));
+}
+
+function paintMetaballs(ctx: CanvasRenderingContext2D, w: number, h: number, blobs: Blob[], threshold: number) {
+  if (!blobs.length) return;
+  let minX = w;
+  let minY = h;
+  let maxX = 0;
+  let maxY = 0;
+  for (const b of blobs) {
+    const reachX = b.rx * 3.4;
+    const reachY = b.ry * 3.4;
+    minX = Math.min(minX, b.x - reachX);
+    minY = Math.min(minY, b.y - reachY);
+    maxX = Math.max(maxX, b.x + reachX);
+    maxY = Math.max(maxY, b.y + reachY);
+  }
+  minX = clamp(Math.floor(minX), 0, w);
+  minY = clamp(Math.floor(minY), 0, h);
+  maxX = clamp(Math.ceil(maxX), 0, w);
+  maxY = clamp(Math.ceil(maxY), 0, h);
+  const lw = Math.max(1, maxX - minX);
+  const lh = Math.max(1, maxY - minY);
+  const step = lw * lh > 90_000 ? 2 : 1;
+  const img = ctx.createImageData(lw, lh);
+  const data = img.data;
+  const coreCut = threshold * 1.55;
+
+  for (let y = 0; y < lh; y += step) {
+    const gy = minY + y;
+    for (let x = 0; x < lw; x += step) {
+      const gx = minX + x;
+      let field = 0;
+      let wr = 0;
+      let wg = 0;
+      let wb = 0;
+      for (const b of blobs) {
+        const dx = (gx - b.x) / b.rx;
+        const dy = (gy - b.y) / b.ry;
+        const d2 = dx * dx + dy * dy + 0.0005;
+        const f = 1 / d2;
+        field += f;
+        wr += b.r * f;
+        wg += b.g * f;
+        wb += b.b * f;
+      }
+      if (field <= threshold) continue;
+      const inv = 1 / field;
+      let r = wr * inv;
+      let g = wg * inv;
+      let b = wb * inv;
+      const rim = clamp((field - threshold) / (threshold * 0.7), 0, 1);
+      const core = field > coreCut ? clamp((field - coreCut) / (coreCut * 0.6), 0, 1) : 0;
+      r = r + (255 - r) * (0.18 * rim + 0.28 * core);
+      g = g + (255 - g) * (0.18 * rim + 0.28 * core);
+      b = b + (255 - b) * (0.18 * rim + 0.28 * core);
+      const a = Math.min(255, 48 + rim * 200 + core * 20);
+      const paint = (ix: number, iy: number) => {
+        if (ix >= lw || iy >= lh) return;
+        const i = (iy * lw + ix) * 4;
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+        data[i + 3] = a;
+      };
+      paint(x, y);
+      if (step === 2) {
+        paint(x + 1, y);
+        paint(x, y + 1);
+        paint(x + 1, y + 1);
+      }
+    }
+  }
+  ctx.putImageData(img, minX, minY);
 }
 
 export function LiquidOverlay({
@@ -20,80 +108,204 @@ export function LiquidOverlay({
   event: FxEvent | null;
   onDone: () => void;
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
+  const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (!event) return;
-    const reduce =
-      typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const canvas = ref.current;
+    if (!canvas) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       onDone();
       return;
     }
-    const t = window.setTimeout(onDone, event.kind === "splash" ? 720 : 620);
-    return () => window.clearTimeout(t);
+
+    const parent = canvas.parentElement;
+    if (!parent) return;
+    const cssW = parent.clientWidth;
+    const cssH = parent.clientHeight;
+    const dpr = Math.min(1.75, window.devicePixelRatio || 1);
+    const w = Math.max(1, Math.floor(cssW * dpr));
+    const h = Math.max(1, Math.floor(cssH * dpr));
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.width = `${cssW}px`;
+    canvas.style.height = `${cssH}px`;
+    const ctx = canvas.getContext("2d", { alpha: true });
+    if (!ctx) return;
+
+    const x0 = (event.fromX / 100) * w;
+    const y0 = (event.fromY / 100) * h;
+    const x1 = (event.x / 100) * w;
+    const y1 = (event.y / 100) * h;
+    const [ar, ag, ab] = parseColor(event.colorA);
+    const [br, bg, bb] = parseColor(event.colorB);
+    const rx = Math.max(22 * dpr, w * 0.048);
+    const ry = Math.max(10 * dpr, h * 0.016);
+    const duration = event.kind === "splash" ? 1080 : 920;
+    const drops: Drop[] = [];
+    let raf = 0;
+    const t0 = performance.now();
+
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - t0) / duration);
+      ctx.clearRect(0, 0, w, h);
+
+      if (event.kind === "fusion") {
+        const approach = clamp(t / 0.38, 0, 1);
+        const ease = 1 - (1 - approach) ** 3;
+        const ax = x0 + (x1 - x0) * ease;
+        const ay = y0 + (y1 - y0) * ease;
+        const dist = Math.hypot(ax - x1, ay - y1);
+        const contact = Math.max(0, 1 - dist / (rx * 2.8));
+        const absorb = clamp((t - 0.36) / 0.42, 0, 1);
+        const settle = clamp((t - 0.78) / 0.22, 0, 1);
+        const incomingWins = event.incomingWins !== false;
+        const loserScale = Math.max(0.08, 1 - absorb ** 1.15);
+        const mix = absorb * 0.85;
+        const wobble = settle > 0 ? Math.sin(settle * Math.PI * 3) * (1 - settle) * 0.12 : 0;
+        const inScale = incomingWins ? 1 + contact * 0.18 + absorb * 0.2 + wobble : loserScale * (1 + contact * 0.12);
+        const stScale = incomingWins ? loserScale * (1 + contact * 0.12) : 1 + contact * 0.18 + absorb * 0.12 + wobble;
+        const blobs: Blob[] = [
+          {
+            x: ax,
+            y: ay,
+            rx: rx * inScale,
+            ry: ry * (incomingWins ? 1 + contact * 0.1 + absorb * 0.12 - wobble * 0.6 : loserScale),
+            r: incomingWins ? ar : ar + (br - ar) * mix,
+            g: incomingWins ? ag : ag + (bg - ag) * mix,
+            b: incomingWins ? ab : ab + (bb - ab) * mix,
+          },
+          {
+            x: x1,
+            y: y1,
+            rx: rx * stScale,
+            ry: ry * (incomingWins ? loserScale * (1 + contact * 0.08) : 1 + contact * 0.1 + absorb * 0.12 - wobble * 0.6),
+            r: incomingWins ? br + (ar - br) * mix : br,
+            g: incomingWins ? bg + (ag - bg) * mix : bg,
+            b: incomingWins ? bb + (ab - bb) * mix : bb,
+          },
+        ];
+        if (contact > 0.2 && absorb < 0.85) {
+          blobs.push({
+            x: (ax + x1) / 2,
+            y: (ay + y1) / 2,
+            rx: rx * (0.28 + contact * 0.35) * (1 - absorb * 0.4),
+            ry: ry * (0.22 + contact * 0.28) * (1 - absorb * 0.4),
+            r: (ar + br) / 2,
+            g: (ag + bg) / 2,
+            b: (ab + bb) / 2,
+          });
+        }
+        paintMetaballs(ctx, w, h, blobs, 0.78 - contact * 0.12);
+      } else {
+        const slam = clamp(t / 0.2, 0, 1);
+        const se = 1 - (1 - slam) ** 4;
+        const ax = x0 + (x1 - x0) * se;
+        const ay = y0 + (y1 - y0) * se;
+        if (t < 0.26) {
+          const squash = 1 + slam * 0.55;
+          paintMetaballs(
+            ctx,
+            w,
+            h,
+            [
+              { x: ax, y: ay, rx: rx / squash, ry: ry * squash, r: ar, g: ag, b: ab },
+              { x: x1, y: y1, rx: rx / squash, ry: ry * squash, r: br, g: bg, b: bb },
+            ],
+            0.7,
+          );
+        } else {
+          if (drops.length === 0) {
+            for (let i = 0; i < 22; i++) {
+              const ang = (i / 22) * Math.PI * 2 + 0.27;
+              const spd = (0.7 + (i % 5) * 0.18) * rx * 0.19;
+              const useA = i % 2 === 0;
+              const mass = 0.65 + (i % 4) * 0.18;
+              drops.push({
+                x: x1,
+                y: y1,
+                vx: Math.cos(ang) * spd,
+                vy: Math.sin(ang) * spd * 0.72 - 0.35 * dpr,
+                rx: (3.4 + (i % 4) * 1.1) * dpr * mass,
+                ry: (2.1 + (i % 3) * 0.7) * dpr * mass,
+                r: useA ? ar : br,
+                g: useA ? ag : bg,
+                b: useA ? ab : bb,
+                life: 1,
+                mass,
+              });
+            }
+          }
+          const u = (t - 0.26) / 0.74;
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(255,255,255,${0.28 * (1 - u)})`;
+          ctx.lineWidth = 1.6 * dpr;
+          ctx.ellipse(x1, y1, rx * (1 + u * 2.8), ry * (1 + u * 2.8), 0, 0, Math.PI * 2);
+          ctx.stroke();
+
+          for (let i = 0; i < drops.length; i++) {
+            const d = drops[i];
+            d.x += d.vx;
+            d.y += d.vy;
+            d.vy += 0.11 * dpr;
+            d.vx *= 0.978;
+            d.vy *= 0.978;
+            d.life = Math.max(0, 1 - u);
+            for (let j = i + 1; j < drops.length; j++) {
+              const o = drops[j];
+              const dx = o.x - d.x;
+              const dy = o.y - d.y;
+              const dist = Math.hypot(dx, dy) || 0.001;
+              const touch = d.rx + o.rx;
+              if (dist < touch * 0.92) {
+                const nx = dx / dist;
+                const ny = dy / dist;
+                const overlap = (touch - dist) * 0.18;
+                d.x -= nx * overlap;
+                d.y -= ny * overlap;
+                o.x += nx * overlap;
+                o.y += ny * overlap;
+                const dvx = o.vx - d.vx;
+                const dvy = o.vy - d.vy;
+                const closing = dvx * nx + dvy * ny;
+                if (closing < 0) {
+                  d.vx += nx * closing * 0.35;
+                  d.vy += ny * closing * 0.35;
+                  o.vx -= nx * closing * 0.35;
+                  o.vy -= ny * closing * 0.35;
+                }
+              }
+            }
+          }
+          paintMetaballs(
+            ctx,
+            w,
+            h,
+            drops
+              .filter((d) => d.life > 0.05)
+              .map((d) => ({
+                x: d.x,
+                y: d.y,
+                rx: d.rx * d.life,
+                ry: d.ry * d.life,
+                r: d.r,
+                g: d.g,
+                b: d.b,
+              })),
+            0.95,
+          );
+        }
+      }
+
+      if (t < 1) raf = requestAnimationFrame(tick);
+      else onDone();
+    };
+
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, [event, onDone]);
 
   if (!event) return null;
-
-  const drops =
-    event.kind === "splash"
-      ? Array.from({ length: 12 }, (_, i) => {
-          const a = (i / 12) * Math.PI * 2 + 0.2;
-          return { x: event.x + Math.cos(a) * 28, y: event.y + Math.sin(a) * 22, i };
-        })
-      : [];
-
-  return (
-    <svg
-      ref={svgRef}
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-    >
-      <defs>
-        <filter id={`goo-${event.id}`} x="-40%" y="-40%" width="180%" height="180%">
-          <feGaussianBlur in="SourceGraphic" stdDeviation="1.4" result="blur" />
-          <feColorMatrix
-            in="blur"
-            mode="matrix"
-            values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -8"
-            result="goo"
-          />
-        </filter>
-      </defs>
-      {event.kind === "fusion" ? (
-        <g filter={`url(#goo-${event.id})`}>
-          <circle cx={event.fromX} cy={event.fromY} r="3.2" fill={event.colorA}>
-            <animate attributeName="cx" to={event.x} dur="0.42s" fill="freeze" />
-            <animate attributeName="cy" to={event.y} dur="0.42s" fill="freeze" />
-            <animate attributeName="r" values="3.2;4.6;3.4" dur="0.6s" fill="freeze" />
-          </circle>
-          <circle cx={event.x} cy={event.y} r="3.2" fill={event.colorB}>
-            <animate attributeName="r" values="3.2;4.2;0.2" dur="0.6s" fill="freeze" />
-            <animate attributeName="opacity" values="1;1;0" dur="0.6s" fill="freeze" />
-          </circle>
-        </g>
-      ) : (
-        <g filter={`url(#goo-${event.id})`}>
-          <circle cx={event.fromX} cy={event.fromY} r="3" fill={event.colorA}>
-            <animate attributeName="cx" to={event.x} dur="0.22s" fill="freeze" />
-            <animate attributeName="cy" to={event.y} dur="0.22s" fill="freeze" />
-            <animate attributeName="opacity" values="1;0" begin="0.2s" dur="0.35s" fill="freeze" />
-          </circle>
-          <circle cx={event.x} cy={event.y} r="3" fill={event.colorB}>
-            <animate attributeName="opacity" values="1;0" begin="0.2s" dur="0.35s" fill="freeze" />
-          </circle>
-          {drops.map((d) => (
-            <circle key={d.i} cx={event.x} cy={event.y} r="1.1" fill={d.i % 2 ? event.colorA : event.colorB}>
-              <animate attributeName="cx" to={d.x} dur="0.55s" fill="freeze" />
-              <animate attributeName="cy" to={d.y} dur="0.55s" fill="freeze" />
-              <animate attributeName="r" values="1.3;0.2" dur="0.55s" fill="freeze" />
-              <animate attributeName="opacity" values="0.95;0" dur="0.55s" fill="freeze" />
-            </circle>
-          ))}
-        </g>
-      )}
-    </svg>
-  );
+  return <canvas ref={ref} className="pointer-events-none absolute inset-0 h-full w-full" />;
 }

@@ -49,11 +49,11 @@ function roundedLoop(
 }
 
 function hqPentagon(cx: number, cy: number, roof: "up" | "down"): string {
-  const w = 58;
-  const h = 26;
+  const w = 72;
+  const h = 34;
   const x = cx - w / 2;
   const y = cy - h / 2;
-  const peak = h * 0.38;
+  const peak = h * 0.4;
   if (roof === "up") {
     return `M ${cx} ${y} L ${x + w} ${y + peak} L ${x + w} ${y + h} L ${x} ${y + h} L ${x} ${y + peak} Z`;
   }
@@ -129,9 +129,9 @@ export function BoardArt({
       return (
         <path
           d={hqPentagon(p.x, p.y, roofFor(n))}
-          fill="rgba(18,16,12,0.55)"
-          stroke="rgba(251,191,36,0.95)"
-          strokeWidth="1.8"
+          fill="rgba(28,22,12,0.72)"
+          stroke="rgba(251,191,36,0.98)"
+          strokeWidth="2.05"
           strokeLinejoin="round"
         />
       );
@@ -190,8 +190,8 @@ export function BoardArt({
             y1={a.y}
             x2={b.x}
             y2={b.y}
-            stroke="rgba(226,232,240,0.42)"
-            strokeWidth="1.85"
+            stroke="rgba(226,232,240,0.58)"
+            strokeWidth="2.15"
             strokeLinecap="round"
           />
         );

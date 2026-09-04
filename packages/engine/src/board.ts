@@ -272,9 +272,9 @@ export function inTerritory(y: number, x: number, side: Side): boolean {
 /** Compact board: horizontal stations, regular grid (HQ on the same rank as 端线). */
 export const DISPLAY = {
   originX: 54,
-  originY: 32,
+  originY: 30,
   gapX: 94,
-  gapY: 46,
+  gapY: 40,
 };
 
 export function nodeDisplay(id: string, flipY: boolean): { x: number; y: number } {

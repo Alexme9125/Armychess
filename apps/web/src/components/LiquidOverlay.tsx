@@ -78,10 +78,11 @@ function paintMetaballs(ctx: CanvasRenderingContext2D, w: number, h: number, blo
       let b = wb * inv;
       const rim = clamp((field - threshold) / (threshold * 0.7), 0, 1);
       const core = field > coreCut ? clamp((field - coreCut) / (coreCut * 0.6), 0, 1) : 0;
-      r = r + (255 - r) * (0.18 * rim + 0.28 * core);
-      g = g + (255 - g) * (0.18 * rim + 0.28 * core);
-      b = b + (255 - b) * (0.18 * rim + 0.28 * core);
-      const a = Math.min(255, 48 + rim * 200 + core * 20);
+      const sheen = 0.34 * rim + 0.4 * core;
+      r = r + (230 - r) * sheen;
+      g = g + (245 - g) * sheen;
+      b = b + (255 - b) * sheen;
+      const a = Math.min(255, 90 + rim * 165 + core * 15);
       const paint = (ix: number, iy: number) => {
         if (ix >= lw || iy >= lh) return;
         const i = (iy * lw + ix) * 4;
@@ -109,6 +110,8 @@ export function LiquidOverlay({
   onDone: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     if (!event) return;
@@ -116,7 +119,7 @@ export function LiquidOverlay({
     if (!canvas) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
-      onDone();
+      onDoneRef.current();
       return;
     }
 
@@ -140,9 +143,9 @@ export function LiquidOverlay({
     const y1 = (event.y / 100) * h;
     const [ar, ag, ab] = parseColor(event.colorA);
     const [br, bg, bb] = parseColor(event.colorB);
-    const rx = Math.max(22 * dpr, w * 0.048);
-    const ry = Math.max(10 * dpr, h * 0.016);
-    const duration = event.kind === "splash" ? 1080 : 920;
+    const rx = Math.max(26 * dpr, w * 0.058);
+    const ry = Math.max(12 * dpr, h * 0.02);
+    const duration = event.kind === "splash" ? 1250 : 1100;
     const drops: Drop[] = [];
     let raf = 0;
     const t0 = performance.now();
@@ -299,13 +302,19 @@ export function LiquidOverlay({
       }
 
       if (t < 1) raf = requestAnimationFrame(tick);
-      else onDone();
+      else onDoneRef.current();
     };
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [event, onDone]);
+  }, [event]);
 
   if (!event) return null;
-  return <canvas ref={ref} className="pointer-events-none absolute inset-0 h-full w-full" />;
+  return (
+    <canvas
+      ref={ref}
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      style={{ filter: "saturate(1.2) brightness(1.08)" }}
+    />
+  );
 }

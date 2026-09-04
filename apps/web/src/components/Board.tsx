@@ -28,7 +28,7 @@ function toPct(id: string, flipY: boolean) {
 }
 
 function sideColor(side: Side) {
-  return side === "black" ? "rgba(42,46,56,0.96)" : "rgba(236,242,250,0.96)";
+  return side === "black" ? "rgba(72,86,112,0.96)" : "rgba(236,244,255,0.96)";
 }
 
 export function GameBoard({
